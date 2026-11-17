@@ -55,10 +55,11 @@ class RecognitionEngine(RecognitionEngineBase):
     def evaluate(self,item,context):
         if context.get('rulebook'):
             facts=self.registry.evaluate(item,context['rulebook'],dt.date.fromisoformat(str(context.get('today','2026-11-16')))); return AnalysisResult(str(item.get('id','unknown')),facts['accepted'],decimal.Decimal('1') if facts['accepted'] else decimal.Decimal('0'),tuple(facts['reasons']),facts)
-        key=str(item.get('id','unknown'));evidence=item.get('evidence',[]);rules=context.get('rules') or [{'type':'diploma','minimum':1},{'type':'experience','minimum':1}];counts=Counter(entry.get('type') for entry in evidence if not entry.get('revoked'));reasons=[];satisfied=0
+        key=str(item.get('id','unknown'));evidence=item.get('evidence',[]);rules=context.get('rules') or [{'type':'diploma','minimum':1},{'type':'experience','minimum':1}];reasons=[];satisfied=0
         now=dt.date.fromisoformat(str(context.get('today','2026-11-16')))
+        active=self.registry.active(evidence,now);distinct,duplicates=self.registry.distinct(active);counts=Counter(row.get('type') for row in distinct)
         for rule in rules:
-            available=sum(1 for entry in evidence if entry.get('type')==rule['type'] and not entry.get('revoked') and (not entry.get('expires') or dt.date.fromisoformat(entry['expires'])>=now))
+            available=counts[str(rule['type'])]
             if available<int(rule.get('minimum',1)):reasons.append('rule_unsatisfied:'+rule['type'])
             else:satisfied+=1
-        value=decimal.Decimal(satisfied)/decimal.Decimal(max(1,len(rules)));return AnalysisResult(key,not reasons,value,tuple(reasons),{'counts':dict(counts),'satisfied_rules':satisfied,'total_rules':len(rules)})
+        value=decimal.Decimal(satisfied)/decimal.Decimal(max(1,len(rules)));return AnalysisResult(key,not reasons,value,tuple(reasons),{'counts':dict(counts),'satisfied_rules':satisfied,'total_rules':len(rules),'submissions':len(active),'duplicates':duplicates})
